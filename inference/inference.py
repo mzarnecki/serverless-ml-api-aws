@@ -1,0 +1,142 @@
+import mxnet as mx
+from mxnet import gluon
+import tarfile
+import json
+import os
+import time
+import uuid
+import boto3
+import os
+import time
+import uuid
+import boto3
+
+dynamodb = boto3.resource("dynamodb")
+LOG_TABLE = os.environ.get("LOG_TABLE", "")
+
+
+def log_to_dynamodb(text: str, result: str, request_id: str):
+    if not LOG_TABLE:
+        return  # logging disabled
+
+    table = dynamodb.Table(LOG_TABLE)
+    now = int(time.time())
+
+    # Partition by day so queries are easy later
+    pk = time.strftime("DAY#%Y-%m-%d", time.gmtime(now))
+    sk = f"TS#{now}#{uuid.uuid4().hex}"
+
+    item = {
+        "pk": pk,
+        "sk": sk,
+        "ts": now,
+        "requestId": request_id,
+        "text": text,
+        "result": result,
+    }
+
+    table.put_item(Item=item)
+
+
+def vocab_from_json(path):
+    with open(path) as inp:
+        vocab = json.load(inp)
+        print('Vocabulary (%d words) loaded from "%s"', len(vocab), path)
+        return vocab
+    
+def model_fn(model_dir):
+    """
+    Load the gluon model. Called once when hosting service starts.
+
+    :param: model_dir The directory where model files are stored.
+    :return: a model (in this case a Gluon network)
+    """
+    symbol = mx.sym.load('%s/model.json' % model_dir)
+    vocab = vocab_from_json('%s/vocab.json' % model_dir)
+    outputs = mx.symbol.softmax(data=symbol, name='softmax_label')
+    inputs = mx.sym.var('data')
+    param_dict = gluon.ParameterDict('model_')
+    net = gluon.SymbolBlock(outputs, inputs, param_dict)
+    net.load_parameters('%s/model.params' % model_dir, ctx=mx.cpu())
+    return net, vocab
+
+
+def transform_fn(net, data):
+    """
+    Transform a request using the Gluon model. Called once per request.
+
+    :param net: The Gluon model.
+    :param data: The request payload.
+    :param input_content_type: The request content type.
+    :param output_content_type: The (desired) response content type.
+    :return: response payload and content type.
+    """
+    # we can use content types to vary input/output handling, but
+    # here we just assume json for both
+    net, vocab = net
+    outputs = []
+    tokens = [vocab.get(token, 1) for token in data.lower().split()]
+    nda = mx.nd.array([tokens])
+    output = net(nda)
+    response_body = f'Positivity: {output[0][1].asscalar():.0%}'
+    return response_body
+
+with tarfile.open('model.tar.gz', "r:gz") as tar:
+    tar.extractall('/tmp')
+net = model_fn('/tmp')
+
+def lambda_handler(event, context):
+    try:
+        # Support both direct Lambda invoke ({"text": "..."})
+        # and API Gateway proxy invoke ({"body": "{\"text\":\"...\"}", ...})
+        text = None
+
+        if isinstance(event, dict):
+            if "text" in event:
+                text = event.get("text")
+            elif "body" in event and event["body"] is not None:
+                body = event["body"]
+                if isinstance(body, str):
+                    try:
+                        body = json.loads(body)
+                    except json.JSONDecodeError:
+                        body = {}
+                if isinstance(body, dict):
+                    text = body.get("text")
+
+        if not isinstance(text, str) or not text.strip():
+            return {
+                "statusCode": 400,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                },
+                "body": json.dumps({"error": "Missing or empty 'text' field"})
+            }
+
+        result = transform_fn(net, text)
+
+        # logging
+        try:
+            log_to_dynamodb(text=text, result=result, request_id=context.aws_request_id)
+        except Exception:
+            pass
+
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
+            "body": json.dumps({"result": result})
+        }
+
+    except Exception:
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
+            "body": json.dumps({"error": "ProcessingError"})
+        }
