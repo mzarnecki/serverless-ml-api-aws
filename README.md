@@ -2,8 +2,12 @@
 
 This is a demo of deploying machine learning models as serverless API.
 
-This repository is a modified code from AWS blog:
+[inference_sentiment_analysis](inference_sentiment_analysis) is a modified code and ML model from AWS blog Anders Christiansen post:
 https://aws.amazon.com/blogs/machine-learning/deploying-machine-learning-models-as-serverless-apis/
+
+Business Individual Classifier [inference_business_vs_individual](inference_business_vs_individual) is a modified code and ML model from 
+Matthew Jones jonesmwh repository:
+https://github.com/jonesmwh/business-individual-classifier
 
 ### Application architecture
 

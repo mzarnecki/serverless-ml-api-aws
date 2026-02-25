@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Sentiment Analysis (Lambda + API Gateway)</title>
+  <title>ML model serverless API (Lambda + API Gateway)</title>
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: 40px auto; }
     textarea { width: 100%; height: 120px; }
@@ -13,7 +13,7 @@
   </style>
 </head>
 <body>
-  <h1>Sentiment analysis</h1>
+  <h1>ML model serverless API</h1>
   <p>Enter a sentence, then click Predict.</p>
 
   <textarea id="text">I love this product.</textarea>
@@ -27,7 +27,7 @@
   <pre id="out">{}</pre>
 
   <script>
-   const API_URL = "https://ehtnwasbrf.execute-api.us-east-1.amazonaws.com/Production/predict"; //TODO change to your endpoint
+   const API_URL = "https://t5qtukf7oi.execute-api.us-east-1.amazonaws.com/Production/predict"; //TODO change to your endpoint
 
     async function readResponse(res) {
       const ct = (res.headers.get("content-type") || "").toLowerCase();
