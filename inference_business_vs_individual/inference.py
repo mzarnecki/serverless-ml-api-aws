@@ -9,13 +9,16 @@ MULTI_SPACES_PATTERN = r"\s+"
 TOKENIZED_LENGTH = 120
 PAD_CHAR_CODE = ord("¬")  # used in repo padding :contentReference[oaicite:2]{index=2}
 
+
 def remove_invalid_characters(input_text: str) -> str:
     s = re.sub(INVALID_LETTERS_PATTERN, " ", input_text.lower())
     s = re.sub(MULTI_SPACES_PATTERN, " ", s).strip()
     return s
 
+
 def encode_to_ord_list(s: str) -> list[int]:
     return [ord(ch) for ch in s]
+
 
 def pad_tokens(tokenized: list[int], total_length: int) -> list[int]:
     diff = len(tokenized) - total_length
@@ -26,6 +29,7 @@ def pad_tokens(tokenized: list[int], total_length: int) -> list[int]:
         return [PAD_CHAR_CODE] * (-diff) + tokenized
     # truncate from the end (keep last N) :contentReference[oaicite:4]{index=4}
     return tokenized[-total_length:]
+
 
 def parse_text(event) -> str | None:
     # direct invoke: {"text": "..."}
@@ -45,9 +49,11 @@ def parse_text(event) -> str | None:
 
     return None
 
+
 # --- model load once per container (cold start) ---
 MODEL_PATH = "trained_model.h5"
 model = tf.keras.models.load_model(MODEL_PATH)
+
 
 def lambda_handler(event, context):
     cors_headers = {
@@ -63,7 +69,8 @@ def lambda_handler(event, context):
 
     text = parse_text(event)
     if not text or not text.strip():
-        return {"statusCode": 400, "headers": cors_headers, "body": json.dumps({"error": "Missing or empty 'text' field"})}
+        return {"statusCode": 400, "headers": cors_headers,
+                "body": json.dumps({"error": "Missing or empty 'text' field"})}
 
     cleaned = remove_invalid_characters(text)
     encoded = encode_to_ord_list(cleaned)

@@ -29,12 +29,10 @@ def log_to_dynamodb(text: str, result: str, request_id: str):
     table.put_item(Item=item)
     
     
-    
-#add code below to lambda_handler()
-result = transform_fn(net, text)
-
+#------- add code below to lambda_handler() in inference.py below "result = transform_fn(net, text)" ------------------#
 # logging
 try:
     log_to_dynamodb(text=text, result=result, request_id=context.aws_request_id)
-except Exception:
+except Exception as e:
+    print(f"DynamoDB error: {e}")
     pass
